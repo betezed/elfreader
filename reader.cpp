@@ -26,7 +26,7 @@ bool is_ELF(Elf32_Ehdr eh)
 	 * Using  octal escape sequence to represent 0x7f
 	 */
 	if(!strncmp((char*)eh.e_ident, "\177ELF", 4)) {
-		printf("ELF OK");
+		//printf("ELF OK");
 		/* IS a ELF file */
 		return 1;
 	} else {
@@ -349,17 +349,51 @@ void disassemble(ifstream* file_handle, Elf32_Ehdr eh, Elf32_Shdr* sh_table)
 
 }  
 
+void print_help() {
+	printf("Usage: readelf <options> elf_binary\n"
+		"  Displays information about elf binary\n"
+		"  Options are:\n"
+		"\t-e\tDisplay ELF header\n"
+		"\t-p\tDisplay Program header table\n"
+		"\t-s\tDisplay Section header table\n"
+		"\t-S\tDisplay Symbol table\n"
+		"\t-D\tDecompile binary\n"
+		"\t-h\tDisplay help\n"
+		);
+}
+
 int main(int argc, char* argv[]) {
-	if (argc != 2) {
-		printf("Usage: %s <binary>\n" , argv[0]);
+	if (argc < 2) {
+		printf("Usage: %s [-hespSD] elf_binary\n" , argv[0]);
 		return -1;
 	}
 
-	Elf32_Ehdr eh;		/* elf-header is fixed size */
+	int opt;
+    enum { ELF, SECTION, PROGRAM, SYMBOL, DISASSEMBLE, HELP, ALL } mode = ALL;
+
+    while ((opt = getopt(argc, argv, "hespSD")) != -1) {
+        switch (opt) {
+        case 'h': mode = HELP; break;
+        case 'e': mode = ELF; break;
+        case 's': mode = SECTION; break;
+        case 'p': mode = PROGRAM; break;
+        case 'S': mode = SYMBOL; break;
+        case 'D': mode = DISASSEMBLE; break;
+        default:
+            fprintf(stderr, "Usage: %s [-hespSD] binary\n", argv[0]);
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    if (mode == HELP) {
+    	print_help();
+    }
+
+	Elf32_Ehdr eh;			/* elf-header is fixed size */
 	Elf32_Shdr* sh_table;	/* section-header table is variable size */
 	Elf32_Phdr* ph_table;
 	ifstream file_handle;
-	file_handle.open(argv[1], ios::in|ios::binary);
+	file_handle.open(argv[optind], ios::in|ios::binary);
 	if (file_handle.is_open()) {
 		read_elf_header(&file_handle, &eh);
 
@@ -373,26 +407,28 @@ int main(int argc, char* argv[]) {
 		/*
 		 * ELF Header
 		 */
-		print_elf_header(eh);
+		if (mode == ALL || mode == ELF) {
+			print_elf_header(eh);
+		}
 
 		/*
 		 * Program Header
 		 */
 		read_program_headers(&file_handle, eh, ph_table);
-		print_program_headers(ph_table, eh.e_phnum);	
+		if (mode == ALL || mode == PROGRAM) print_program_headers(ph_table, eh.e_phnum);	
 
 		/*
 		 * Sections Header
 		 */
 		read_section_headers(&file_handle, eh, sh_table);
-		print_section_headers(&file_handle, eh, sh_table);
+		if (mode == ALL || mode == SECTION) print_section_headers(&file_handle, eh, sh_table);
 
 		/*
 		 * Symbols
 		 */
-		print_symbols(&file_handle, eh, sh_table);
+		if (mode == ALL || mode == SYMBOL) print_symbols(&file_handle, eh, sh_table);
 
-		disassemble(&file_handle, eh, sh_table);
+		if (mode == ALL || mode == DISASSEMBLE) disassemble(&file_handle, eh, sh_table);
 		/*
 		ofstream output_asm_file;
 		string output_asm_file_name = argv[1] + string(".asm");
